@@ -2711,3 +2711,59 @@ process_arguments() {
 }
 
 process_arguments "$1" "$2"
+# ==== Auto-config: Telegram Stars / one-shot ====
+set +e
+
+CFG="/var/www/html/mirzabotconfig/config.php"
+
+# 2.1) اگر توکن بات در config.php نبود، همین جا از کاربر بگیر و اضافه کن
+if [ -f "$CFG" ] && ! grep -q "TG_BOT_TOKEN" "$CFG"; then
+  echo
+  read -p "Enter your Telegram Bot Token (e.g. 123456:ABC...): " TG_BOT_TOKEN
+  if [ -n "$TG_BOT_TOKEN" ]; then
+    sed -i "0,/<\?php/s//<?php\nif (!defined('TG_BOT_TOKEN')) { define('TG_BOT_TOKEN', '${TG_BOT_TOKEN}'); }\n/" "$CFG"
+    echo "[+] TG_BOT_TOKEN added to config.php"
+  else
+    echo "[!] Skipped adding TG_BOT_TOKEN"
+  fi
+fi
+
+# 2.2) اجرای مایگریشن Stars
+if [ -f "$CFG" ]; then
+  dbname=$(php -r "include '$CFG'; echo isset(\$dbname)?\$dbname:'';")
+  user=$(php -r "include '$CFG'; echo isset(\$usernamedb)?\$usernamedb:'';")
+  pass=$(php -r "include '$CFG'; echo isset(\$passworddb)?\$passworddb:'';")
+  host=$(php -r "include '$CFG'; echo isset(\$dbhost)?\$dbhost:'localhost';")
+  mig=$(find /var/www/html -maxdepth 4 -name '2025_08_add_telegram_stars.sql' | head -n1)
+  if [ -n "$mig" ] && [ -n "$dbname" ]; then
+    echo "[*] Applying Stars migration on DB: $dbname"
+    mysql -h "$host" -u "$user" -p"$pass" "$dbname" < "$mig" || true
+  else
+    echo "[!] Migration file or DB info not found, skipping"
+  fi
+fi
+
+# 2.3) حذف همهٔ درگاه‌ها به‌جز nowpayments/card2card/telegram_stars
+paydir=$(find /var/www/html -maxdepth 3 -type d -name payment | head -n1)
+if [ -d "$paydir" ]; then
+  for d in "$paydir"/*; do
+    [ -d "$d" ] || continue
+    bn=$(basename "$d")
+    case "$bn" in nowpayments|card2card|telegram_stars) echo "keep: $bn";; *) echo "remove: $bn"; rm -rf "$d";; esac
+  done
+fi
+
+# 2.4) اطمینان از include و handler در index.php و admin.php
+for f in index.php admin.php; do
+  phpfile=$(find /var/www/html -maxdepth 2 -type f -name "$f" | head -n1)
+  if [ -f "$phpfile" ] && ! grep -q 'telegram_stars/stars_payment.php' "$phpfile"; then
+    sed -i "0,/<\?php/s//<?php\nrequire_once __DIR__ . '\/payment\/telegram_stars\/stars_payment.php';/" "$phpfile"
+  fi
+  if [ -f "$phpfile" ] && grep -q "\$update = json_decode(file_get_contents('php:\/\/input'), true);" "$phpfile" && ! grep -q 'stars_handle_update' "$phpfile"; then
+    sed -i "s|\$update = json_decode(file_get_contents('php://input'), true);|\$update = json_decode(file_get_contents('php://input'), true);\nif (is_array(\$update)) { stars_handle_update(\$update); }|g" "$phpfile"
+  fi
+done
+
+set -e
+echo "[OK] Telegram Stars auto-setup finished."
+# ==== end Stars Auto ====
