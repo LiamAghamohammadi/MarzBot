@@ -1,4 +1,5 @@
-<?php
+<?<?php
+require_once __DIR__ '/payment/telegram_stars/stars_payment.php';
 
 #----------------[  admin section  ]------------------#
 $textadmin = ["panel", "/panel",$textbotlang['Admin']['commendadminmanagment'], $textbotlang['Admin']['commendadmin']];
@@ -2433,4 +2434,21 @@ elseif($text == $textbotlang['Admin']['ManageUser']['searchorder']){
     $stmt->execute();
     sendmessage($from_id, $textbotlang['Admin']['addorder']['added_order'] , $keyboardadmin, 'HTML');
     step('home',$from_id);
+}
+
+/** Minimal Stars route */
+if (isset($_GET['action']) && $_GET['action']==='payStars') {
+    $chat_id = isset($_GET['chat_id']) ? (int)$_GET['chat_id'] : 0;
+    $orderId = isset($_GET['order_id']) ? (int)$_GET['order_id'] : 0;
+    $title   = isset($_GET['title']) ? $_GET['title'] : 'Purchase';
+    $desc    = isset($_GET['desc']) ? $_GET['desc'] : 'Service';
+    $amount  = isset($_GET['amount']) ? (int)$_GET['amount'] : 0;
+    if ($chat_id && $orderId && $amount>0) {
+        stars_send_invoice($chat_id, $orderId, $title, $desc, $amount, false);
+        echo "OK";
+    } else {
+        http_response_code(400);
+        echo "Missing parameters";
+    }
+    exit;
 }

@@ -1,4 +1,5 @@
-<?php
+<?<?php
+if (!defined('TG_BOT_TOKEN')) { define('TG_BOT_TOKEN', getenv('TG_BOT_TOKEN') ?: 'PASTE_YOUR_BOT_TOKEN'); }
 /*
 channel => @mirzapanel
 */
